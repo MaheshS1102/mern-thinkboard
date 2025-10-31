@@ -13,22 +13,34 @@ const app = express();
 const PORT = process.env.PORT || 5001;
 const __dirname = path.resolve();
 
-// middleware
+// --- Cors: make sure preflight is handled BEFORE rate limiter ---
 if (process.env.NODE_ENV !== "production") {
-    app.use(
-        cors({
-            origin: "http://localhost:5173",
-        })
-    );
-}
-app.use(express.json()); // this middleware will parse JSON bodies: req.body
-app.use(rateLimiter);
+    // allow dev origin
+    app.use(cors({
+        origin: "http://localhost:5173",
+        credentials: true,
+    }));
 
-// our simple custom middleware
-// app.use((req, res, next) => {
-//   console.log(`Req method is ${req.method} & Req URL is ${req.url}`);
-//   next();
-// });
+    // Ensure OPTIONS preflight is handled
+    app.options("*", cors({
+        origin: "http://localhost:5173",
+        credentials: true,
+    }));
+} else {
+    // In production, allow your production origin or configure appropriately
+    app.use(cors());
+    app.options("*", cors());
+}
+
+app.use(express.json()); // parse JSON bodies
+
+// Ensure rateLimiter middleware itself skips OPTIONS requests (best practice)
+app.use((req, res, next) => {
+    if (req.method === "OPTIONS") return next(); // skip rate limiter for preflight
+    return next();
+});
+
+app.use(rateLimiter);
 
 app.use("/api/notes", notesRoutes);
 

@@ -1,3 +1,4 @@
+// src/pages/CreatePage.jsx
 import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import toast from "react-hot-toast";
@@ -21,22 +22,40 @@ const CreatePage = () => {
 
     setLoading(true);
     try {
-      await api.post("/notes", {
-        title,
-        content,
+      // Using your axios instance with baseURL set to /api or http://localhost:5001/api
+      const res = await api.post("/notes", {
+        title: title.trim(),
+        content: content.trim(),
       });
 
       toast.success("Note created successfully!");
+      // Optional: clear form if you want
+      setTitle("");
+      setContent("");
       navigate("/");
-    } catch (error) {
-      console.log("Error creating note", error);
-      if (error.response.status === 429) {
+    } catch (err) {
+      // Defensive checks to avoid reading undefined properties
+      console.error("Error creating note", err);
+
+      const status = err?.response?.status;
+
+      if (status === 429) {
+        // Server responded with rate-limit
         toast.error("Slow down! You're creating notes too fast", {
           duration: 4000,
           icon: "💀",
         });
-      } else {
+      } else if (!err.response && err.request) {
+        // Request sent but no response received => likely CORS / network error
+        toast.error("Network or CORS error: backend unreachable. Check server and CORS settings.");
+        console.error("No response from server. Possible CORS/preflight or network error.", err.message);
+      } else if (status) {
+        // Other server-side error with a response (4xx/5xx)
+        console.error("Server responded with status:", status, err.response?.data);
         toast.error("Failed to create note");
+      } else {
+        // Unknown error (setup, axios config, etc.)
+        toast.error("An unexpected error occurred");
       }
     } finally {
       setLoading(false);
@@ -66,6 +85,7 @@ const CreatePage = () => {
                     className="input input-bordered"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
+                    disabled={loading}
                   />
                 </div>
 
@@ -78,6 +98,7 @@ const CreatePage = () => {
                     className="textarea textarea-bordered h-32"
                     value={content}
                     onChange={(e) => setContent(e.target.value)}
+                    disabled={loading}
                   />
                 </div>
 
